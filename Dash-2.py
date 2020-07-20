@@ -28,12 +28,14 @@ app = dash.Dash(
 )
 server = app.server
 
-VIDEO_PATH = "assets/sample3.mp4"
-#VIDEO_PATH = "assets/N190918.mp4"
+#path for sample video, model and label binarizer
+VIDEO_PATH = "assets/samplevideo.mp4"
 model = load_model('model/model.h5')
 lb = pickle.loads(open('model/lb.pickle', "rb").read())
 
-TIME_SKIPS = float(4000) #skip every 2 seconds. You need to modify this
+#set the parameters
+#skip every 4 seconds for frames. You need to modify this
+TIME_SKIPS = float(4000) 
 TIME_SKIPS_seconds=int(TIME_SKIPS/1000)
 
 day_list = [
@@ -50,10 +52,10 @@ boundaries = [
     ([17, 15, 100], [50, 56, 200]),
     ([86, 31, 4], [220, 88, 50]),
     ([25, 146, 190], [62, 174, 250])]
-##############################OPENCV
+
+############################## MAGNITUDE 
 
 START_FRAME_NUMBER = 0
-
 
 # The video feed is read in as a VideoCapture object
 cap = cv.VideoCapture(VIDEO_PATH)
@@ -80,15 +82,13 @@ mask = np.zeros_like(first_frame)
 # Sets image saturation to maximum
 mask[..., 1] = 255
 
-# Define the columns to be included in the DataFrame (the motion magnitude will be added to here)
 gray_image1 = []
 magn_total_image = []
 magn_feeding_station = []
 magn_drinking_station = []
-magn_lamp_area = []
-magn_other = []
 index = []
 count = 0
+
 while(cap.isOpened()):
     cap.set(cv.CAP_PROP_POS_MSEC,(count*TIME_SKIPS))
 
@@ -107,8 +107,6 @@ while(cap.isOpened()):
         gray_image1.append(0)
     else:
         gray_image1.append(1)
-    # Opens a new window and displays the input frame
-    #cv.imshow("input", frame[40:320,200:530])
     
 
     # Preprocess with the same steps as the first image
@@ -128,7 +126,6 @@ while(cap.isOpened()):
     magn_total_image.append(sum(sum((magnitude))))
     magn_feeding_station.append(sum(sum(magnitude[185:285,270:365])))
     magn_drinking_station.append(sum(sum(magnitude[75:140,240:530])))
-    magn_lamp_area.append(sum(sum(magnitude[140:250,400:530])))
     index.append(count*TIME_SKIPS_seconds)
     count += 1
     
@@ -142,8 +139,6 @@ while(cap.isOpened()):
     # To visualize the processed image: a blend between original and rgb
     blend = cv.addWeighted(frame,0.4, rgb,0.6, 0)
 
-    # Opens a new window and displays the output frame
-    #cv.imshow("dense optical flow", blend[40:320,200:530])      
     # Updates previous frame
     prev_gray = gray
     # Frames are read by intervals of 1 millisecond. The programs breaks out of the while loop when the user presses the 'q' key
@@ -154,9 +149,8 @@ while(cap.isOpened()):
 cap.release()
 cv.destroyAllWindows()
 
-##############################
+############################## CNN
 
-##############################CNN
 gray_image2 = []
 predic_sleeping = []
 predic_feeding = []
@@ -218,8 +212,6 @@ while True:
 
  # release the file pointers
 vs.release()
-##############################
-#check if frame is gray
 
 #############################
 
@@ -249,7 +241,7 @@ app.layout = html.Div(
     [
      dcc.Store(id="aggregate_data"),
      html.Div(id="output-clientside"),
-#############################################################  
+#############################  
 # first container (logo, title)
      html.Div([ 
            # logo
@@ -273,7 +265,7 @@ app.layout = html.Div(
     style={"margin-bottom": "25px"},
         ),
 
-################################################################################               
+#############################               
 # second container (video, histogram)     
         html.Div([
                            
@@ -330,10 +322,7 @@ app.layout = html.Div(
                         )    
                     
                   ,          
-                    
-   ###############################        
-                  
-                    
+                                                  
                      html.Div(
                             id="video-container",
                             children=[
@@ -344,10 +333,7 @@ app.layout = html.Div(
                                         controls=True,
                                        # playing=True,
                                         width = 520,
-                                        height = 300,),
-                                
-                                
-                
+                                        height = 300,),                                                                               
                     
                      ],
                     className="pretty_container",
@@ -382,6 +368,9 @@ app.layout = html.Div(
 )
 
 
+#############################
+
+#plot for Magnitude result
 @app.callback(Output("magnitude_graph", "figure"),
               [ Input("aggregate_data", "data"), 
               ]
@@ -394,6 +383,7 @@ def magnitude_figure(data):
     firstindex=gray_image1.index(0)
     points.append(index[firstindex])
     
+    #check if a frame is gray
     for i in range(firstindex,len(gray_image1)-1):
         if gray_image1[i+1]==0 and gray_image1[i]==1:
             points.append(index[i])
@@ -439,7 +429,7 @@ def magnitude_figure(data):
     traces.append(trace)
     
     
-    
+    #assign the area in chart where light is off
     allshapes=[]
     inde=0
     while inde<=(len(points)-2):
@@ -469,7 +459,7 @@ def magnitude_figure(data):
     return figure
 
 
-
+#plot for CNN result
 @app.callback(Output("CNN_graph", "figure"),
               [ Input("aggregate_data", "data")
                
@@ -484,6 +474,7 @@ def cnn_figure(data):
     firstindex=gray_image2.index(0)
     points.append(time_sec[firstindex])
     
+    #check if a frame is gray
     for i in range(firstindex,len(gray_image2)-1):
         if gray_image2[i+1]==0 and gray_image2[i]==1:
             points.append(time_sec[i])
@@ -528,7 +519,7 @@ def cnn_figure(data):
         )
     traces.append(trace)
     
-        
+    #assign the area in chart where light is off    
     allshapes=[]
     inde=0
     while inde<=(len(points)-2):
@@ -560,10 +551,12 @@ def cnn_figure(data):
     
     return figure
 
+#start video bases on the defined area
 @app.callback(Output('video-player', 'seekTo'),
               [Input("magnitude_graph", "relayoutData"),
               Input("CNN_graph", "relayoutData")])
 def set_seekTo(magdata,cnndata):
+    
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     if  (magdata) and ('magnitude_graph.relayoutData' in changed_id) and ('xaxis.range[0]' in magdata.keys()):
         return magdata['xaxis.range[0]']
