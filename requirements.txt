@@ -1,6 +1,6 @@
 opencv_python==4.2.0.34
 matplotlib==3.2.2
-numpy==1.18.1
+numpy==1.22.0
 tf_nightly==2.4.0.dev20200702
 imutils==0.5.3
 scikit_learn==0.23.1
